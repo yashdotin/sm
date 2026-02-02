@@ -7,7 +7,7 @@ const COOLDOWN_MINUTES = 3;
 
 export async function POST(req: NextRequest) {
   const { password } = await req.json();
-  const ip = req.headers.get("x-forwarded-for") || req.ip || "unknown";
+  const ip = req.headers.get("x-forwarded-for") || "unknown";
   let attempts = Number(globalThis["_attempts_" + ip] || 0);
   let cooldownUntil = Number(globalThis["_cooldown_" + ip] || 0);
   const now = Date.now();
