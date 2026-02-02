@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 
 const VALENTINE_MONTH = 1; // February (0-indexed)
 const VALENTINE_DAY = 14;
@@ -26,26 +27,73 @@ function getTimeRemaining(target: Date) {
   return { days, hours, minutes, seconds };
 }
 
+function getServerTime(): Promise<Date> {
+  // For demo, just return local time. Replace with real server sync if needed.
+  return Promise.resolve(new Date());
+}
+
 const Countdown = () => {
   const [remaining, setRemaining] = useState(() => getTimeRemaining(getNextValentine()));
+  const [done, setDone] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const target = getNextValentine();
-    const interval = setInterval(() => {
-      setRemaining(getTimeRemaining(target));
-    }, 1000);
-    return () => clearInterval(interval);
+    let active = true;
+    function update() {
+      getServerTime().then(now => {
+        const target = getNextValentine();
+        const diff = target.getTime() - now.getTime();
+        if (diff <= 0) {
+          setDone(true);
+          setRemaining({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+          if (intervalRef.current) clearInterval(intervalRef.current);
+        } else {
+          setRemaining(getTimeRemaining(target));
+        }
+      });
+    }
+    intervalRef.current = setInterval(update, 1000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        setPaused(true);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      } else {
+        setPaused(false);
+        update();
+        intervalRef.current = setInterval(update, 1000);
+      }
+    });
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      active = false;
+    };
   }, []);
 
   return (
     <div className="flex flex-col items-center text-center gap-1">
-      <span className="text-lg font-medium text-pink-500">Countdown to Valentine’s Day</span>
-      <div className="flex gap-2 text-2xl font-bold">
-        <span>{remaining.days}d</span>
-        <span>{remaining.hours}h</span>
-        <span>{remaining.minutes}m</span>
-        <span>{remaining.seconds}s</span>
-      </div>
+      <span className="text-lg font-bold text-pink-100 drop-shadow-lg">Countdown to Valentine’s Day</span>
+      {!done && (
+        <div className="flex gap-3 text-3xl font-extrabold text-pink-50 bg-pink-900/80 rounded-xl px-4 py-3 shadow-lg border-2 border-pink-400 animate-pulse">
+          {[['days', 'd'], ['hours', 'h'], ['minutes', 'm'], ['seconds', 's']].map(([unit, label], idx) => (
+            <motion.span
+              key={unit}
+              initial={{ rotateX: 90, opacity: 0 }}
+              animate={{ rotateX: 0, opacity: 1 }}
+              transition={{ duration: 0.5, ease: 'easeOut', delay: idx * 0.1 }}
+              className="inline-block min-w-[2.5ch]"
+            >
+              {remaining[unit as keyof typeof remaining]}{label}
+            </motion.span>
+          ))}
+        </div>
+      )}
+      {paused && <span className="text-xs text-pink-200 mt-1">Paused (tab inactive)</span>}
+      {done && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 text-pink-100 text-2xl font-bold drop-shadow-lg animate-pulse">
+          Happy Valentine’s Day! <span role="img" aria-label="love">💝</span>
+        </motion.div>
+      )}
     </div>
   );
 };
